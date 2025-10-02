@@ -212,13 +212,31 @@ resource "google_cloudbuild_trigger" "github_push" {
 
   repository_event_config {
     repository = "projects/${var.project_id}/locations/${var.region}/connections/github/repositories/${var.github_repo}"
-
     push {
       branch = "^main$"
     }
   }
 
-  filename = "cloudbuild.yaml"
+  build {
+    step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["build", "-t", "gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "-t", "gcr.io/$PROJECT_ID/fragrance-scout:latest", "."]
+    }
+    step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["push", "gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA"]
+    }
+    step {
+      name = "gcr.io/cloud-builders/docker"
+      args = ["push", "gcr.io/$PROJECT_ID/fragrance-scout:latest"]
+    }
+    step {
+      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk"
+      entrypoint = "gcloud"
+      args       = ["run", "services", "update", "fragrance-scout", "--image=gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "--region=${var.region}", "--platform=managed"]
+    }
+    images = ["gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "gcr.io/$PROJECT_ID/fragrance-scout:latest"]
+  }
 
   depends_on = [
     google_project_service.cloudbuild,
