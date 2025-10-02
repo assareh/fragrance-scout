@@ -204,6 +204,13 @@ resource "google_project_service" "iam" {
   depends_on         = [google_project_service.cloudresourcemanager]
 }
 
+# Import existing Cloud Build repository connection (created manually)
+data "google_cloudbuildv2_repository" "fragrance_scout" {
+  name     = "fragrance-scout"
+  location = var.region
+  parent_connection = "projects/${var.project_id}/locations/${var.region}/connections/github"
+}
+
 # Cloud Build trigger for GitHub
 resource "google_cloudbuild_trigger" "github_push" {
   name        = "fragrance-scout-github-push"
@@ -211,7 +218,7 @@ resource "google_cloudbuild_trigger" "github_push" {
   location    = var.region
 
   repository_event_config {
-    repository = "projects/${var.project_id}/locations/${var.region}/connections/github/repositories/${var.github_repo}"
+    repository = data.google_cloudbuildv2_repository.fragrance_scout.id
     push {
       branch = "^main$"
     }
