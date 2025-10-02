@@ -76,7 +76,7 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
       resources {
         limits = {
           cpu    = "1000m"
-          memory = "128Mi"
+          memory = "512Mi"
         }
       }
     }
