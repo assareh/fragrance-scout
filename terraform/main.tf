@@ -45,8 +45,9 @@ resource "google_secret_manager_secret" "gemini_api_key" {
 
 # Cloud Run service
 resource "google_cloud_run_v2_service" "fragrance_scout" {
-  name     = "fragrance-scout"
-  location = var.region
+  name               = "fragrance-scout"
+  location           = var.region
+  deletion_protection = false
 
   template {
     containers {
