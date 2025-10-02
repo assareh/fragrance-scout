@@ -230,7 +230,7 @@ class FragranceScout:
         """Query Gemini with retry logic for rate limits"""
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel(
-            'gemini-2.0-flash-exp',
+            'gemini-2.5-flash',
             generation_config={
                 "response_mime_type": "application/json",
                 "response_schema": {
