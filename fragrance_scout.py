@@ -642,6 +642,23 @@ def run_scout_background():
     scout.run_forever()
 
 
+def load_posts_on_startup():
+    """Load found posts from GCS on app startup"""
+    global found_posts
+    if GCS_BUCKET:
+        try:
+            storage_client = storage.Client()
+            bucket = storage_client.bucket(GCS_BUCKET)
+            blob = bucket.blob(POSTS_FILE)
+            if blob.exists():
+                posts_data = json.loads(blob.download_as_string())
+                found_posts = posts_data.get("posts", [])
+                logger.info(f"Loaded {len(found_posts)} posts from GCS on startup")
+            else:
+                logger.info("No found_posts.json in GCS yet")
+        except Exception as e:
+            logger.error(f"Error loading posts on startup: {e}")
+
 def main():
     """Main entry point - runs web UI and scout in parallel"""
     logger.info("=" * 80)
@@ -653,6 +670,10 @@ def main():
         logger.info(f"GCS Bucket: {GCS_BUCKET}")
         logger.info("Web UI will be available on Cloud Run URL")
         logger.info("/scan endpoint ready for Cloud Scheduler")
+
+        # Load existing posts from GCS on startup
+        load_posts_on_startup()
+
         # In cloud mode, just run the web UI (Cloud Scheduler will hit /scan)
         app.run(host='0.0.0.0', port=WEB_UI_PORT, debug=False)
     else:
