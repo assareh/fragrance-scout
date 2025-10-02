@@ -256,10 +256,10 @@ data "google_project" "project" {
 }
 
 # Outputs
-# output "cloud_run_url" {
-#   value       = google_cloud_run_v2_service.fragrance_scout.uri
-#   description = "URL of the Cloud Run service"
-# }
+output "cloud_run_url" {
+  value       = "https://fragrance-scout-${data.google_project.project.number}.${var.region}.run.app"
+  description = "URL of the Cloud Run service"
+}
 
 output "gcs_bucket_name" {
   value       = google_storage_bucket.fragrance_scout.name
