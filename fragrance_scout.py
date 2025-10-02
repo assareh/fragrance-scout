@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 from flask import Flask, render_template_string
 import google.generativeai as genai
 from google.cloud import storage
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 
 # Configuration
@@ -164,13 +165,28 @@ class FragranceScout:
         if GCS_BUCKET and POSTS_FILE:
             self._save_to_gcs(POSTS_FILE, {"posts": found_posts})
 
+    @retry(
+        retry=retry_if_exception_type(requests.exceptions.HTTPError),
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(3),
+        reraise=True
+    )
+    def _fetch_rss_feed_with_retry(self, feed_url: str):
+        """Fetch RSS feed with retry logic for rate limits"""
+        response = requests.get(feed_url, timeout=30)
+        if response.status_code == 429:
+            retry_after = int(response.headers.get('Retry-After', 60))
+            logger.warning(f"Reddit rate limit hit, waiting {retry_after}s")
+            time.sleep(retry_after)
+            response.raise_for_status()
+        response.raise_for_status()
+        return response
+
     def _fetch_rss_feed(self, feed_url: str) -> List[Dict]:
         """Fetch and parse RSS feed"""
         try:
             logger.info(f"Fetching RSS feed: {feed_url}")
-            # Use requests to fetch with proper SSL handling, then parse
-            response = requests.get(feed_url, timeout=30)
-            response.raise_for_status()
+            response = self._fetch_rss_feed_with_retry(feed_url)
             feed = feedparser.parse(response.content)
 
             if feed.bozo:
@@ -192,9 +208,41 @@ class FragranceScout:
             logger.info(f"Found {len(posts)} posts in feed")
             return posts
 
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                logger.error(f"Reddit rate limit exhausted after retries for {feed_url}")
+            else:
+                logger.error(f"HTTP error fetching RSS feed {feed_url}: {e}")
+            return []
         except Exception as e:
             logger.error(f"Error fetching RSS feed {feed_url}: {e}")
             return []
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        stop=stop_after_attempt(3),
+        reraise=True
+    )
+    def _query_gemini_with_retry(self, prompt: str, user_message: str):
+        """Query Gemini with retry logic for rate limits"""
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel(
+            'gemini-2.0-flash-exp',
+            generation_config={
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "interesting": {"type": "boolean"},
+                        "reason": {"type": "string"}
+                    },
+                    "required": ["interesting", "reason"]
+                }
+            }
+        )
+
+        response = model.generate_content(f"{prompt}\n\n{user_message}")
+        return json.loads(response.text)
 
     def _query_llm(self, title: str, body: str) -> Optional[Dict]:
         """Query LLM (Gemini or local) to determine if post is interesting"""
@@ -202,25 +250,16 @@ class FragranceScout:
             user_message = f"TITLE: {title}\n\nBODY: {body}"
 
             if USE_GEMINI:
-                # Use Gemini API
-                genai.configure(api_key=GEMINI_API_KEY)
-                model = genai.GenerativeModel(
-                    'gemini-2.0-flash-exp',
-                    generation_config={
-                        "response_mime_type": "application/json",
-                        "response_schema": {
-                            "type": "object",
-                            "properties": {
-                                "interesting": {"type": "boolean"},
-                                "reason": {"type": "string"}
-                            },
-                            "required": ["interesting", "reason"]
-                        }
-                    }
-                )
+                # Add throttling between requests (free tier: 10 req/min)
+                time.sleep(6.5)  # ~9 requests per minute to stay under limit
 
-                response = model.generate_content(f"{FILTER_PROMPT}\n\n{user_message}")
-                return json.loads(response.text)
+                try:
+                    return self._query_gemini_with_retry(FILTER_PROMPT, user_message)
+                except Exception as e:
+                    if "429" in str(e) or "quota" in str(e).lower():
+                        logger.error(f"Gemini rate limit/quota exceeded: {e}")
+                        return None
+                    raise
 
             else:
                 # Use local LLM with structured output
@@ -556,7 +595,6 @@ HTML_TEMPLATE = """
             <div class="empty-state">
                 <h3>👀 Watching for interesting posts...</h3>
                 <p>No posts found yet. The scout checks every 30 minutes.</p>
-                <a href="/" class="refresh-btn">Refresh Now</a>
             </div>
         {% endif %}
     </div>
