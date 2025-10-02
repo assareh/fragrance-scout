@@ -1,0 +1,3 @@
+project_id      = "fragrance-scout"
+region          = "us-central1"
+container_image = "gcr.io/fragrance-scout/fragrance-scout:latest"
