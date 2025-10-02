@@ -77,14 +77,16 @@ FILTER_PROMPT = """You are a fragrance expert tasked with identifying interestin
 - Detailed reviews with scent notes, impressions, longevity, sillage, projection
 - First impressions, wear tests, batch comparisons
 - Discussion of note breakdowns and development
-- Personal experiences and recommendations
+- Personal experiences with specific fragrances
 
 **IGNORE:**
 - Designer/mass-market brands (Dior, Boss, Chanel, Gucci, YSL, Armani, Versace, Paco Rabanne, etc.)
 - Simple mentions without substance
 - Purchase questions without reviews
-- Generic recommendation requests
+- Recommendation requests (asking others for suggestions)
+- "What should I buy?" or "Help me choose" posts
 - Collection photos without detailed commentary
+- Blind buy questions or shopping advice
 
 **INPUT:** You will receive a Reddit post title and body.
 
