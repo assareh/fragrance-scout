@@ -217,26 +217,7 @@ resource "google_cloudbuild_trigger" "github_push" {
     }
   }
 
-  build {
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = ["build", "-t", "gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "-t", "gcr.io/$PROJECT_ID/fragrance-scout:latest", "."]
-    }
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = ["push", "gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA"]
-    }
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = ["push", "gcr.io/$PROJECT_ID/fragrance-scout:latest"]
-    }
-    step {
-      name       = "gcr.io/google.com/cloudsdktool/cloud-sdk"
-      entrypoint = "gcloud"
-      args       = ["run", "services", "update", "fragrance-scout", "--image=gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "--region=${var.region}", "--platform=managed"]
-    }
-    images = ["gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA", "gcr.io/$PROJECT_ID/fragrance-scout:latest"]
-  }
+  filename = "cloudbuild.yaml"
 
   depends_on = [
     google_project_service.cloudbuild,
