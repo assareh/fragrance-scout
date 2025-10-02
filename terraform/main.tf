@@ -76,16 +76,16 @@ resource "google_secret_manager_secret" "gemini_api_key" {
 #
 #       resources {
 #         limits = {
-#           cpu    = "1"
-#           memory = "512Mi"
+#           cpu    = "1000m"
+#           memory = "128Mi"
 #         }
 #       }
 #     }
 #
 #     service_account = google_service_account.fragrance_scout.email
 #
-#     max_instance_request_concurrency = 10
-#     timeout                          = "300s"
+#     max_instance_request_concurrency = 80
+#     timeout                          = "60s"
 #
 #     scaling {
 #       min_instance_count = 0
