@@ -211,7 +211,7 @@ resource "google_cloudbuild_trigger" "github_push" {
   location    = var.region
 
   repository_event_config {
-    repository = "projects/fragrance-scout/locations/us-west1/connections/github/repositories/fragrance-scout"
+    repository = "projects/${var.project_id}/locations/${var.region}/connections/github/repositories/${var.github_repo}"
     push {
       branch = "^main$"
     }
