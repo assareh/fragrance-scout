@@ -195,11 +195,6 @@ resource "google_project_service" "cloudbuild" {
   depends_on         = [google_project_service.cloudresourcemanager]
 }
 
-resource "google_project_service" "sourcerepo" {
-  service            = "sourcerepo.googleapis.com"
-  disable_on_destroy = false
-  depends_on         = [google_project_service.cloudresourcemanager]
-}
 
 resource "google_project_service" "iam" {
   service            = "iam.googleapis.com"
@@ -208,6 +203,8 @@ resource "google_project_service" "iam" {
 }
 
 # Cloud Build trigger for GitHub
+# Note: GitHub connection must be set up manually in Cloud Console first
+# https://console.cloud.google.com/cloud-build/triggers/connect
 resource "google_cloudbuild_trigger" "github_push" {
   name        = "fragrance-scout-github-push"
   description = "Build and deploy on push to main branch"
@@ -222,20 +219,26 @@ resource "google_cloudbuild_trigger" "github_push" {
 
   filename = "cloudbuild.yaml"
 
-  depends_on = [google_project_service.cloudbuild]
+  depends_on = [
+    google_project_service.cloudbuild,
+    google_project_iam_member.cloudbuild_run_admin,
+    google_project_iam_member.cloudbuild_sa_user
+  ]
 }
 
 # Grant Cloud Build service account permissions
 resource "google_project_iam_member" "cloudbuild_run_admin" {
-  project = var.project_id
-  role    = "roles/run.admin"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  project    = var.project_id
+  role       = "roles/run.admin"
+  member     = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  depends_on = [google_project_service.cloudbuild]
 }
 
 resource "google_project_iam_member" "cloudbuild_sa_user" {
-  project = var.project_id
-  role    = "roles/iam.serviceAccountUser"
-  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  project    = var.project_id
+  role       = "roles/iam.serviceAccountUser"
+  member     = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  depends_on = [google_project_service.cloudbuild]
 }
 
 # Get project data
