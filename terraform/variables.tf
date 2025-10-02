@@ -13,6 +13,7 @@ variable "region" {
 variable "container_image" {
   description = "Container image for Cloud Run (e.g., gcr.io/project-id/fragrance-scout:latest)"
   type        = string
+  default     = "gcr.io/fragrance-scout/fragrance-scout:latest"
 }
 
 variable "github_owner" {

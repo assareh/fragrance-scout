@@ -28,6 +28,8 @@ resource "google_storage_bucket" "fragrance_scout" {
       type = "Delete"
     }
   }
+
+  depends_on = [google_project_service.cloudresourcemanager]
 }
 
 # Secret for Gemini API key
@@ -37,6 +39,8 @@ resource "google_secret_manager_secret" "gemini_api_key" {
   replication {
     auto {}
   }
+
+  depends_on = [google_project_service.secretmanager]
 }
 
 # Cloud Run service
@@ -91,12 +95,16 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
     percent = 100
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
+
+  depends_on = [google_project_service.run]
 }
 
 # Service account for Cloud Run
 resource "google_service_account" "fragrance_scout" {
   account_id   = "fragrance-scout"
   display_name = "Fragrance Scout Service Account"
+
+  depends_on = [google_project_service.iam]
 }
 
 # IAM binding for GCS bucket access
@@ -137,12 +145,16 @@ resource "google_cloud_scheduler_job" "fragrance_scout_scan" {
       service_account_email = google_service_account.scheduler.email
     }
   }
+
+  depends_on = [google_project_service.scheduler]
 }
 
 # Service account for Cloud Scheduler
 resource "google_service_account" "scheduler" {
   account_id   = "fragrance-scout-scheduler"
   display_name = "Fragrance Scout Scheduler Service Account"
+
+  depends_on = [google_project_service.iam]
 }
 
 # IAM binding for Cloud Scheduler to invoke Cloud Run
@@ -154,29 +166,45 @@ resource "google_cloud_run_v2_service_iam_member" "scheduler_invoker" {
 }
 
 # Enable required APIs
+resource "google_project_service" "cloudresourcemanager" {
+  service            = "cloudresourcemanager.googleapis.com"
+  disable_on_destroy = false
+}
+
 resource "google_project_service" "run" {
   service            = "run.googleapis.com"
   disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
 }
 
 resource "google_project_service" "scheduler" {
   service            = "cloudscheduler.googleapis.com"
   disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
 }
 
 resource "google_project_service" "secretmanager" {
   service            = "secretmanager.googleapis.com"
   disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
 }
 
 resource "google_project_service" "cloudbuild" {
   service            = "cloudbuild.googleapis.com"
   disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
 }
 
 resource "google_project_service" "sourcerepo" {
   service            = "sourcerepo.googleapis.com"
   disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
+}
+
+resource "google_project_service" "iam" {
+  service            = "iam.googleapis.com"
+  disable_on_destroy = false
+  depends_on         = [google_project_service.cloudresourcemanager]
 }
 
 # Cloud Build trigger for GitHub
