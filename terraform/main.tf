@@ -205,33 +205,35 @@ resource "google_project_service" "iam" {
 }
 
 # Import existing Cloud Build repository connection (created manually)
-data "google_cloudbuildv2_repository" "fragrance_scout" {
-  name     = "fragrance-scout"
-  location = var.region
-  parent_connection = "projects/${var.project_id}/locations/${var.region}/connections/github"
-}
+# data "google_cloudbuildv2_repository" "fragrance_scout" {
+#   name     = "fragrance-scout"
+#   location = var.region
+#   parent_connection = "projects/${var.project_id}/locations/${var.region}/connections/github"
+# }
 
 # Cloud Build trigger for GitHub
-resource "google_cloudbuild_trigger" "github_push" {
-  name        = "fragrance-scout-github-push"
-  description = "Build and deploy on push to main branch"
-  location    = var.region
-
-  repository_event_config {
-    repository = data.google_cloudbuildv2_repository.fragrance_scout.id
-    push {
-      branch = "^main$"
-    }
-  }
-
-  filename = "cloudbuild.yaml"
-
-  depends_on = [
-    google_project_service.cloudbuild,
-    google_project_iam_member.cloudbuild_run_admin,
-    google_project_iam_member.cloudbuild_sa_user
-  ]
-}
+# NOTE: Create manually in console first, then import:
+# terraform import google_cloudbuild_trigger.github_push projects/fragrance-scout/locations/us-west1/triggers/TRIGGER_ID
+# resource "google_cloudbuild_trigger" "github_push" {
+#   name        = "fragrance-scout-github-push"
+#   description = "Build and deploy on push to main branch"
+#   location    = var.region
+#
+#   repository_event_config {
+#     repository = data.google_cloudbuildv2_repository.fragrance_scout.id
+#     push {
+#       branch = "^main$"
+#     }
+#   }
+#
+#   filename = "cloudbuild.yaml"
+#
+#   depends_on = [
+#     google_project_service.cloudbuild,
+#     google_project_iam_member.cloudbuild_run_admin,
+#     google_project_iam_member.cloudbuild_sa_user
+#   ]
+# }
 
 # Grant Cloud Build service account permissions
 resource "google_project_iam_member" "cloudbuild_run_admin" {
