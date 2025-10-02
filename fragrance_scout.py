@@ -553,12 +553,6 @@ HTML_TEMPLATE = """
             background: #357abd;
         }
     </style>
-    <script>
-        // Auto-refresh every 30 seconds
-        setTimeout(function() {
-            location.reload();
-        }, 30000);
-    </script>
 </head>
 <body>
     <div class="container">
@@ -566,7 +560,7 @@ HTML_TEMPLATE = """
             <h1>🌸 Fragrance Scout</h1>
             <p><strong>Monitoring:</strong> r/perfumes, r/nicheperfumes</p>
             <p><strong>Posts found:</strong> {{ posts|length }}</p>
-            <p class="timestamp">Last updated: {{ now }} UTC • Auto-refreshes every 30s</p>
+            <p class="timestamp">Last updated: {{ now }} UTC</p>
         </div>
 
         {% if posts %}
