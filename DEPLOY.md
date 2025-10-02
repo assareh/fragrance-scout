@@ -44,7 +44,33 @@ gcloud services enable cloudbuild.googleapis.com
 echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets create gemini-api-key --data-file=-
 ```
 
-### 3. Build and Push Container
+### 3. Connect GitHub Repository to Cloud Build
+
+Cloud Build will automatically build and deploy when you push to the main branch.
+
+```bash
+# Connect your GitHub repository (one-time setup)
+# This will open a browser to authorize Cloud Build to access your GitHub
+gcloud builds triggers create github \
+  --name="manual-setup" \
+  --repo-name="fragrance-scout" \
+  --repo-owner="assareh" \
+  --branch-pattern="^main$" \
+  --build-config="cloudbuild.yaml"
+
+# Note: The actual trigger will be created by Terraform,
+# but this step authorizes Cloud Build to access GitHub
+```
+
+Alternatively, authorize via the Cloud Console:
+1. Go to [Cloud Build Triggers](https://console.cloud.google.com/cloud-build/triggers)
+2. Click "Connect Repository"
+3. Select GitHub and authorize
+4. Select your fragrance-scout repository
+
+### 4. Initial Build (Manual)
+
+For the first deployment, manually build and push:
 
 ```bash
 # Configure Docker for GCR
@@ -57,7 +83,7 @@ docker build -t gcr.io/$PROJECT_ID/fragrance-scout:latest .
 docker push gcr.io/$PROJECT_ID/fragrance-scout:latest
 ```
 
-### 4. Deploy with Terraform
+### 5. Deploy with Terraform
 
 ```bash
 cd terraform
@@ -140,7 +166,28 @@ Approximate monthly costs:
 
 ## Updating the Deployment
 
-### Update Code
+### Update Code (Automatic via Cloud Build)
+
+After initial setup, deployments are automatic:
+
+```bash
+# Make changes to fragrance_scout.py
+git add .
+git commit -m "Update: description of changes"
+git push origin main
+
+# Cloud Build automatically:
+# 1. Builds new Docker image
+# 2. Pushes to GCR with commit SHA tag
+# 3. Deploys to Cloud Run
+# 4. Tags image as :latest
+
+# Monitor the build
+gcloud builds list --limit=5
+gcloud builds log $(gcloud builds list --limit=1 --format="value(id)")
+```
+
+### Manual Update (if needed)
 
 ```bash
 # Make changes to fragrance_scout.py

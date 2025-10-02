@@ -14,3 +14,15 @@ variable "container_image" {
   description = "Container image for Cloud Run (e.g., gcr.io/project-id/fragrance-scout:latest)"
   type        = string
 }
+
+variable "github_owner" {
+  description = "GitHub repository owner/organization"
+  type        = string
+  default     = "assareh"
+}
+
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+  default     = "fragrance-scout"
+}

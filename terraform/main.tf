@@ -169,6 +169,52 @@ resource "google_project_service" "secretmanager" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "cloudbuild" {
+  service            = "cloudbuild.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "sourcerepo" {
+  service            = "sourcerepo.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Cloud Build trigger for GitHub
+resource "google_cloudbuild_trigger" "github_push" {
+  name        = "fragrance-scout-github-push"
+  description = "Build and deploy on push to main branch"
+
+  github {
+    owner = var.github_owner
+    name  = var.github_repo
+    push {
+      branch = "^main$"
+    }
+  }
+
+  filename = "cloudbuild.yaml"
+
+  depends_on = [google_project_service.cloudbuild]
+}
+
+# Grant Cloud Build service account permissions
+resource "google_project_iam_member" "cloudbuild_run_admin" {
+  project = var.project_id
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "cloudbuild_sa_user" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser"
+  member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+}
+
+# Get project data
+data "google_project" "project" {
+  project_id = var.project_id
+}
+
 # Outputs
 output "cloud_run_url" {
   value       = google_cloud_run_v2_service.fragrance_scout.uri
