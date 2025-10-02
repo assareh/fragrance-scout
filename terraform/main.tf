@@ -214,14 +214,8 @@ resource "google_cloudbuild_trigger" "github_push" {
     repository = "projects/${var.project_id}/locations/${var.region}/connections/github/repositories/${var.github_repo}"
 
     push {
-      branch = "main"
+      branch = "^main$"
     }
-  }
-
-  source_to_build {
-    uri       = "https://github.com/${var.github_owner}/${var.github_repo}"
-    ref       = "refs/heads/main"
-    repo_type = "GITHUB"
   }
 
   filename = "cloudbuild.yaml"
