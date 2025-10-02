@@ -33,3 +33,9 @@ variable "gemini_api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "scan_auth_token" {
+  description = "Authentication token for /scan endpoint"
+  type        = string
+  sensitive   = true
+}

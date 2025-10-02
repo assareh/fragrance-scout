@@ -15,7 +15,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request, abort
 import google.generativeai as genai
 from google.cloud import storage
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -41,6 +41,9 @@ WEB_UI_PORT = int(os.getenv("PORT", "5002"))
 
 # GCS Storage
 GCS_BUCKET = os.getenv("GCS_BUCKET", "")
+
+# Authentication token for scan endpoint (set via environment variable)
+SCAN_AUTH_TOKEN = os.getenv("SCAN_AUTH_TOKEN", "")
 
 # Tracking file (local or GCS)
 if GCS_BUCKET:
@@ -614,7 +617,16 @@ def index():
 
 @app.route('/scan')
 def scan():
-    """Endpoint for Cloud Scheduler to trigger scanning"""
+    """Endpoint for Cloud Scheduler to trigger scanning (requires authentication)"""
+    # Verify auth token from header or query param
+    auth_token = request.headers.get('X-Auth-Token') or request.args.get('token')
+
+    if not SCAN_AUTH_TOKEN:
+        logger.warning("SCAN_AUTH_TOKEN not configured - scan endpoint is unprotected!")
+    elif auth_token != SCAN_AUTH_TOKEN:
+        logger.warning(f"Unauthorized scan attempt from {request.remote_addr}")
+        abort(401, description="Unauthorized")
+
     scout = FragranceScout()
     scout.run_once()
     return {

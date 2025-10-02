@@ -79,6 +79,11 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
         }
       }
 
+      env {
+        name  = "SCAN_AUTH_TOKEN"
+        value = var.scan_auth_token
+      }
+
       resources {
         limits = {
           cpu    = "1000m"
@@ -146,7 +151,7 @@ resource "google_cloud_scheduler_job" "fragrance_scout_scan" {
 
   http_target {
     http_method = "GET"
-    uri         = "${google_cloud_run_v2_service.fragrance_scout.uri}/scan"
+    uri         = "${google_cloud_run_v2_service.fragrance_scout.uri}/scan?token=${var.scan_auth_token}"
 
     oidc_token {
       service_account_email = google_service_account.scheduler.email
