@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.log
+venv/
+*.egg-info/
+
+# Local development
+sent_posts.json
+found_posts.json
+.env
+
+# Git
+.git/
+.gitignore
+
+# Terraform
+terraform/
+
+# Documentation
+*.md
+README.md
+
+# IDE
+.vscode/
+.idea/

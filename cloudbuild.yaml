@@ -1,8 +1,14 @@
 steps:
-  # Build the container image
+  # Build the container image with build args
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'BUILD_COMMIT_ARG=$COMMIT_SHA'
+      - '--build-arg'
+      - 'BUILD_BRANCH_ARG=$BRANCH_NAME'
+      - '--build-arg'
+      - 'BUILD_TIMESTAMP_ARG=$BUILD_ID'
       - '-t'
       - 'gcr.io/$PROJECT_ID/fragrance-scout:$COMMIT_SHA'
       - '-t'
