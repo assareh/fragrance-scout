@@ -43,6 +43,12 @@ resource "google_secret_manager_secret" "gemini_api_key" {
   depends_on = [google_project_service.secretmanager]
 }
 
+# Secret version with actual API key value
+resource "google_secret_manager_secret_version" "gemini_api_key" {
+  secret      = google_secret_manager_secret.gemini_api_key.id
+  secret_data = var.gemini_api_key
+}
+
 # Cloud Run service
 resource "google_cloud_run_v2_service" "fragrance_scout" {
   name               = "fragrance-scout"

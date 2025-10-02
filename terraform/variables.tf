@@ -27,3 +27,9 @@ variable "github_repo" {
   type        = string
   default     = "fragrance-scout"
 }
+
+variable "gemini_api_key" {
+  description = "Gemini API key for AI analysis"
+  type        = string
+  sensitive   = true
+}
