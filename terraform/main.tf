@@ -204,28 +204,28 @@ resource "google_project_service" "iam" {
 }
 
 # Cloud Build trigger for GitHub
-# Note: GitHub connection must be set up manually in Cloud Console first
+# Note: Uncomment after setting up GitHub connection manually in Cloud Console
 # https://console.cloud.google.com/cloud-build/triggers/connect
-resource "google_cloudbuild_trigger" "github_push" {
-  name        = "fragrance-scout-github-push"
-  description = "Build and deploy on push to main branch"
-
-  github {
-    owner = var.github_owner
-    name  = var.github_repo
-    push {
-      branch = "^main$"
-    }
-  }
-
-  filename = "cloudbuild.yaml"
-
-  depends_on = [
-    google_project_service.cloudbuild,
-    google_project_iam_member.cloudbuild_run_admin,
-    google_project_iam_member.cloudbuild_sa_user
-  ]
-}
+# resource "google_cloudbuild_trigger" "github_push" {
+#   name        = "fragrance-scout-github-push"
+#   description = "Build and deploy on push to main branch"
+#
+#   github {
+#     owner = var.github_owner
+#     name  = var.github_repo
+#     push {
+#       branch = "^main$"
+#     }
+#   }
+#
+#   filename = "cloudbuild.yaml"
+#
+#   depends_on = [
+#     google_project_service.cloudbuild,
+#     google_project_iam_member.cloudbuild_run_admin,
+#     google_project_iam_member.cloudbuild_sa_user
+#   ]
+# }
 
 # Grant Cloud Build service account permissions
 resource "google_project_iam_member" "cloudbuild_run_admin" {
