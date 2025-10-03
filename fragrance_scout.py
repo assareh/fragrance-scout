@@ -1,11 +1,10 @@
 """
 Fragrance Scout - Reddit niche perfume review monitor
 
-Monitors r/perfumes and r/nicheperfumes via RSS for interesting niche/indie perfume reviews
-Filters using local LLM and displays in web UI
+Monitors r/perfumes and r/nicheperfumes via JSON API for interesting niche/indie perfume reviews
+Filters using Gemini AI and displays in web UI
 """
 
-import feedparser
 import requests
 import json
 import time
@@ -23,8 +22,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 # Configuration
 SUBREDDITS = ["perfumes", "nicheperfumes"]
-RSS_FEEDS = [
-    f"https://www.reddit.com/r/{sub}/new/.rss" for sub in SUBREDDITS
+JSON_FEEDS = [
+    f"https://www.reddit.com/r/{sub}/new.json?limit=20" for sub in SUBREDDITS
 ]
 
 # LLM Configuration - use environment variable or default to local
@@ -58,8 +57,9 @@ found_posts = []
 
 # Logging setup
 LOG_FILE = Path(__file__).parent / "fragrance_scout.log"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL),
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 
 
 # LLM Prompt for filtering
-FILTER_PROMPT = """You are a fragrance expert tasked with identifying interesting niche and indie perfume reviews on Reddit.
+FILTER_PROMPT = """You are a fragrance discovery agent tasked with identifying interesting niche and indie perfume reviews on Reddit.
 
 **FOCUS ON:**
 - Niche/indie/artisan brands (e.g., Nishane, Xerjoff, Amouage, Parfums de Marly, Roja, Zoologist, Slumberhouse, Bortnikoff, Papillon, Mona di Orio, Ormonde Jayne, Naomi Goodsir, Francesca Bianchi, Majda Bekkali, Hubigant, BDK, Areej Le Doré, etc.)
@@ -176,9 +176,12 @@ class FragranceScout:
         stop=stop_after_attempt(3),
         reraise=True
     )
-    def _fetch_rss_feed_with_retry(self, feed_url: str):
-        """Fetch RSS feed with retry logic for rate limits"""
-        response = requests.get(feed_url, timeout=30)
+    def _fetch_reddit_json_with_retry(self, feed_url: str):
+        """Fetch Reddit JSON feed with retry logic for rate limits"""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; FragranceScout/1.0)'
+        }
+        response = requests.get(feed_url, headers=headers, timeout=30)
         if response.status_code == 429:
             retry_after = int(response.headers.get('Retry-After', 60))
             logger.warning(f"Reddit rate limit hit, waiting {retry_after}s")
@@ -187,40 +190,60 @@ class FragranceScout:
         response.raise_for_status()
         return response
 
-    def _fetch_rss_feed(self, feed_url: str) -> List[Dict]:
-        """Fetch and parse RSS feed"""
+    def _fetch_reddit_json(self, feed_url: str) -> List[Dict]:
+        """Fetch and parse Reddit JSON feed with flair filtering"""
         try:
-            logger.info(f"Fetching RSS feed: {feed_url}")
-            response = self._fetch_rss_feed_with_retry(feed_url)
-            feed = feedparser.parse(response.content)
+            logger.info(f"Fetching Reddit JSON feed: {feed_url}")
+            response = self._fetch_reddit_json_with_retry(feed_url)
+            data = response.json()
 
-            if feed.bozo:
-                logger.error(f"Error parsing feed {feed_url}: {feed.bozo_exception}")
+            if 'data' not in data or 'children' not in data['data']:
+                logger.error(f"Unexpected JSON structure from {feed_url}")
                 return []
 
+            # Skip list - post flairs we don't want to process
+            skip_flairs = [
+                'recommendation',
+                'collection pics',
+                'bottle identification',
+                'mod post',
+                'look what i found'
+            ]
+
             posts = []
-            for entry in feed.entries[:20]:  # Check last 20 posts
+            for child in data['data']['children']:
+                post_data = child.get('data', {})
+
+                # Get flair text (may be None or empty string)
+                flair = post_data.get('link_flair_text', '') or ''
+
+                # Skip posts with certain flairs
+                if any(skip_flair in flair.lower() for skip_flair in skip_flairs):
+                    logger.debug(f"Skipping post with flair: {flair}")
+                    continue
+
                 post = {
-                    "id": entry.get("id", entry.get("link", "")),
-                    "title": entry.get("title", ""),
-                    "link": entry.get("link", ""),
-                    "author": entry.get("author", ""),
-                    "published": entry.get("published", ""),
-                    "summary": entry.get("summary", "")
+                    "id": post_data.get("name", ""),  # Reddit's unique ID (e.g., t3_abc123)
+                    "title": post_data.get("title", ""),
+                    "link": f"https://reddit.com{post_data.get('permalink', '')}",
+                    "author": post_data.get("author", ""),
+                    "published": str(post_data.get("created_utc", "")),
+                    "summary": post_data.get("selftext", ""),
+                    "flair": flair
                 }
                 posts.append(post)
 
-            logger.info(f"Found {len(posts)} posts in feed")
+            logger.info(f"Found {len(posts)} posts after flair filtering")
             return posts
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
                 logger.error(f"Reddit rate limit exhausted after retries for {feed_url}")
             else:
-                logger.error(f"HTTP error fetching RSS feed {feed_url}: {e}")
+                logger.error(f"HTTP error fetching Reddit JSON {feed_url}: {e}")
             return []
         except Exception as e:
-            logger.error(f"Error fetching RSS feed {feed_url}: {e}")
+            logger.error(f"Error fetching Reddit JSON feed {feed_url}: {e}")
             return []
 
     @retry(
@@ -253,6 +276,14 @@ class FragranceScout:
         """Query LLM (Gemini or local) to determine if post is interesting"""
         try:
             user_message = f"TITLE: {title}\n\nBODY: {body}"
+
+            # Log the full message being sent to LLM for debugging
+            logger.debug("=" * 80)
+            logger.debug("LLM REQUEST:")
+            logger.debug(f"PROMPT:\n{FILTER_PROMPT}")
+            logger.debug("-" * 80)
+            logger.debug(f"USER MESSAGE:\n{user_message}")
+            logger.debug("=" * 80)
 
             if USE_GEMINI:
                 # Add throttling between requests (free tier: 10 req/min)
@@ -404,8 +435,8 @@ class FragranceScout:
         total_posts = 0
         total_sent = 0
 
-        for feed_url in RSS_FEEDS:
-            posts = self._fetch_rss_feed(feed_url)
+        for feed_url in JSON_FEEDS:
+            posts = self._fetch_reddit_json(feed_url)
             total_posts += len(posts)
 
             for post in posts:
@@ -416,7 +447,7 @@ class FragranceScout:
                 except Exception as e:
                     logger.error(f"Error processing post {post.get('id', 'unknown')}: {e}")
 
-            # Delay between RSS feeds to be polite
+            # Delay between JSON API requests to be polite
             time.sleep(5)
 
         logger.info(f"Check cycle complete: {total_posts} posts checked, {total_sent} interesting posts found")
