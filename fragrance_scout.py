@@ -12,6 +12,7 @@ import logging
 import threading
 import os
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Dict, List, Optional
 from flask import Flask, render_template_string, request, abort
@@ -407,7 +408,7 @@ class FragranceScout:
 
             # Store post data for web UI
             post_data = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(ZoneInfo("America/Los_Angeles")).isoformat(),
                 "title": title,
                 "author": post['author'],
                 "link": link,
@@ -419,7 +420,7 @@ class FragranceScout:
 
             # Mark as processed
             logger.info("📱 Added to results")
-            self.sent_posts[post_id] = datetime.now(timezone.utc).isoformat()
+            self.sent_posts[post_id] = datetime.now(ZoneInfo("America/Los_Angeles")).isoformat()
             self._save_tracking()
             self._save_found_posts()  # Save to GCS if configured
             return True
