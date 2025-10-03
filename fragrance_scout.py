@@ -179,7 +179,7 @@ class FragranceScout:
     def _fetch_reddit_json_with_retry(self, feed_url: str):
         """Fetch Reddit JSON feed with retry logic for rate limits"""
         headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; FragranceScout/1.0)'
+            'User-Agent': 'python:fragrance-scout:v1.0.0 (by /u/FragranceScoutBot)'
         }
         response = requests.get(feed_url, headers=headers, timeout=30)
         if response.status_code == 429:
@@ -654,11 +654,17 @@ def scan():
         logger.warning(f"Unauthorized scan attempt from {request.remote_addr}")
         abort(401, description="Unauthorized")
 
-    scout = FragranceScout()
-    scout.run_once()
+    # Run scan asynchronously so we can return immediately
+    def run_scan_async():
+        scout = FragranceScout()
+        scout.run_once()
+
+    scan_thread = threading.Thread(target=run_scan_async, daemon=True)
+    scan_thread.start()
+
     return {
         'status': 'success',
-        'message': 'Scan completed',
+        'message': 'Scan started',
         'posts_found': len(found_posts)
     }
 
