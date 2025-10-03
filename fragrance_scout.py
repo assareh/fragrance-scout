@@ -902,8 +902,7 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="body-box">
-                    <h4>Post Body:</h4>
-                    {{ post.body }}
+                    {{ post.body|trim }}
                 </div>
 
                 <p class="found-time">Found: {{ post.timestamp }}</p>
