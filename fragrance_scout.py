@@ -710,9 +710,29 @@ HTML_TEMPLATE = """
 def index():
     """Display found posts"""
     pacific_time = datetime.now(ZoneInfo("America/Los_Angeles"))
+
+    # Convert old epoch timestamps to readable format for display
+    posts_display = []
+    for post in found_posts:
+        post_copy = post.copy()
+        published = post_copy.get('published', '')
+
+        # Check if it's an old epoch timestamp (contains only digits and possibly a decimal)
+        if published and published.replace('.', '').replace('-', '').replace('+', '').replace(':', '').isdigit():
+            try:
+                # Try to parse as epoch timestamp
+                epoch = float(published)
+                if epoch > 1000000000:  # Reasonable epoch timestamp check
+                    published_dt = datetime.fromtimestamp(epoch, tz=ZoneInfo("America/Los_Angeles"))
+                    post_copy['published'] = published_dt.strftime('%B %d, %Y at %I:%M %p PT')
+            except (ValueError, OSError):
+                pass  # Keep original if conversion fails
+
+        posts_display.append(post_copy)
+
     return render_template_string(
         HTML_TEMPLATE,
-        posts=found_posts,
+        posts=posts_display,
         now=pacific_time.strftime('%B %d, %Y at %I:%M %p PT')
     )
 
