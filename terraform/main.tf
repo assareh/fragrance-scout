@@ -84,6 +84,16 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
         value = var.scan_auth_token
       }
 
+      env {
+        name  = "REDDIT_CLIENT_ID"
+        value = var.reddit_client_id
+      }
+
+      env {
+        name  = "REDDIT_CLIENT_SECRET"
+        value = var.reddit_client_secret
+      }
+
       resources {
         limits = {
           cpu    = "1000m"

@@ -45,6 +45,10 @@ GCS_BUCKET = os.getenv("GCS_BUCKET", "")
 # Authentication token for scan endpoint (set via environment variable)
 SCAN_AUTH_TOKEN = os.getenv("SCAN_AUTH_TOKEN", "")
 
+# Reddit OAuth credentials
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")
+
 # Tracking file (local or GCS)
 if GCS_BUCKET:
     TRACKING_FILE = "sent_posts.json"  # Filename in GCS
@@ -107,6 +111,10 @@ class FragranceScout:
         self.gcs_client = storage.Client() if GCS_BUCKET else None
         self.sent_posts = self._load_tracking()
         self._load_found_posts()
+        self.reddit_token = None
+        self.reddit_token_expires = 0
+        if REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET:
+            self._get_reddit_oauth_token()
 
     def _load_from_gcs(self, filename: str) -> Dict:
         """Load JSON data from GCS"""
@@ -171,6 +179,42 @@ class FragranceScout:
         if GCS_BUCKET and POSTS_FILE:
             self._save_to_gcs(POSTS_FILE, {"posts": found_posts})
 
+    def _get_reddit_oauth_token(self):
+        """Get Reddit OAuth access token for API access"""
+        try:
+            auth = requests.auth.HTTPBasicAuth(REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET)
+            data = {
+                'grant_type': 'client_credentials',
+                'device_id': 'fragrance-scout-v1'
+            }
+            headers = {
+                'User-Agent': 'python:fragrance-scout:v1.0.0 (by /u/FragranceScoutBot)'
+            }
+
+            response = requests.post(
+                'https://www.reddit.com/api/v1/access_token',
+                auth=auth,
+                data=data,
+                headers=headers,
+                timeout=10
+            )
+            response.raise_for_status()
+
+            token_data = response.json()
+            self.reddit_token = token_data['access_token']
+            self.reddit_token_expires = time.time() + token_data.get('expires_in', 3600)
+            logger.info("Successfully obtained Reddit OAuth token")
+
+        except Exception as e:
+            logger.error(f"Failed to get Reddit OAuth token: {e}")
+            self.reddit_token = None
+
+    def _ensure_reddit_token(self):
+        """Ensure we have a valid Reddit OAuth token"""
+        # Refresh if no token or token expires in less than 5 minutes
+        if not self.reddit_token or time.time() > (self.reddit_token_expires - 300):
+            self._get_reddit_oauth_token()
+
     @retry(
         retry=retry_if_exception_type(requests.exceptions.HTTPError),
         wait=wait_exponential(multiplier=1, min=4, max=60),
@@ -182,6 +226,15 @@ class FragranceScout:
         headers = {
             'User-Agent': 'python:fragrance-scout:v1.0.0 (by /u/FragranceScoutBot)'
         }
+
+        # Use OAuth if credentials are configured
+        if REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET:
+            self._ensure_reddit_token()
+            if self.reddit_token:
+                headers['Authorization'] = f'Bearer {self.reddit_token}'
+                # Use oauth.reddit.com for authenticated requests
+                feed_url = feed_url.replace('www.reddit.com', 'oauth.reddit.com')
+
         response = requests.get(feed_url, headers=headers, timeout=30)
 
         # Monitor Reddit rate limit headers per API documentation

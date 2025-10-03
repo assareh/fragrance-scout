@@ -39,3 +39,15 @@ variable "scan_auth_token" {
   type        = string
   sensitive   = true
 }
+
+variable "reddit_client_id" {
+  description = "Reddit OAuth client ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "reddit_client_secret" {
+  description = "Reddit OAuth client secret"
+  type        = string
+  sensitive   = true
+}
