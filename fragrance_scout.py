@@ -215,6 +215,67 @@ class FragranceScout:
         if not self.reddit_token or time.time() > (self.reddit_token_expires - 300):
             self._get_reddit_oauth_token()
 
+    def _fetch_user_profile(self, username: str) -> Optional[Dict]:
+        """Fetch user profile data from Reddit API"""
+        try:
+            headers = {
+                'User-Agent': 'python:fragrance-scout:v1.0.0 (by /u/FragranceScoutBot)'
+            }
+
+            # Use OAuth if available
+            if REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET:
+                self._ensure_reddit_token()
+                if self.reddit_token:
+                    headers['Authorization'] = f'Bearer {self.reddit_token}'
+                    user_url = f'https://oauth.reddit.com/user/{username}/about'
+                else:
+                    user_url = f'https://www.reddit.com/user/{username}/about.json'
+            else:
+                user_url = f'https://www.reddit.com/user/{username}/about.json'
+
+            response = requests.get(user_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if 'data' not in data:
+                logger.warning(f"No data in user profile response for {username}")
+                return None
+
+            user_data = data['data']
+
+            # Calculate account age
+            created_utc = user_data.get('created_utc', 0)
+            if created_utc:
+                created_dt = datetime.fromtimestamp(float(created_utc), tz=ZoneInfo("America/Los_Angeles"))
+                account_age_days = (datetime.now(ZoneInfo("America/Los_Angeles")) - created_dt).days
+                account_age_years = account_age_days / 365.25
+
+                if account_age_years >= 1:
+                    account_age = f"{account_age_years:.1f} years"
+                else:
+                    account_age = f"{account_age_days} days"
+            else:
+                account_age = "Unknown"
+
+            profile = {
+                'username': username,
+                'link_karma': user_data.get('link_karma', 0),
+                'comment_karma': user_data.get('comment_karma', 0),
+                'total_karma': user_data.get('link_karma', 0) + user_data.get('comment_karma', 0),
+                'created_utc': created_utc,
+                'account_age': account_age,
+                'icon_img': user_data.get('icon_img', ''),
+                'verified': user_data.get('verified', False),
+                'is_gold': user_data.get('is_gold', False),
+            }
+
+            logger.debug(f"Fetched profile for u/{username}: {profile['total_karma']} karma, {account_age}")
+            return profile
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch user profile for {username}: {e}")
+            return None
+
     @retry(
         retry=retry_if_exception_type(requests.exceptions.HTTPError),
         wait=wait_exponential(multiplier=1, min=4, max=60),
@@ -481,18 +542,23 @@ class FragranceScout:
             logger.info(f"✨ INTERESTING POST FOUND: {title[:50]}...")
             logger.info(f"   Reason: {llm_result.get('reason', 'N/A')}")
 
+            # Fetch user profile data
+            author_username = post['author']
+            user_profile = self._fetch_user_profile(author_username)
+
             # Store post data for web UI
             post_data = {
                 "timestamp": datetime.now(ZoneInfo("America/Los_Angeles")).isoformat(),
                 "title": title,
-                "author": post['author'],
+                "author": author_username,
                 "link": link,
                 "published": post['published'],
                 "reason": llm_result.get('reason', 'N/A'),
                 "body": body,
                 "subreddit": post.get('subreddit', ''),
                 "subreddit_prefixed": post.get('subreddit_prefixed', ''),
-                "flair": post.get('flair', '')
+                "flair": post.get('flair', ''),
+                "author_profile": user_profile if user_profile else {}
             }
             found_posts.append(post_data)
 
@@ -711,6 +777,74 @@ HTML_TEMPLATE = """
             font-weight: 500;
             margin-left: 8px;
         }
+        .author-link {
+            position: relative;
+            display: inline-block;
+        }
+        .user-hover-card {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            margin-bottom: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 280px;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none;
+        }
+        .author-link:hover .user-hover-card {
+            opacity: 1;
+            visibility: visible;
+        }
+        .user-hover-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+        }
+        .user-hover-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1em;
+        }
+        .user-hover-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 0.85em;
+        }
+        .user-stat {
+            color: var(--text-secondary);
+        }
+        .user-stat strong {
+            color: var(--text-primary);
+            display: block;
+            font-size: 1.1em;
+        }
+        .user-badge {
+            display: inline-block;
+            background: #ffd700;
+            color: #000;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.7em;
+            font-weight: 600;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body>
@@ -729,7 +863,38 @@ HTML_TEMPLATE = """
                     <h2>{{ post.title }}</h2>
                     <div class="post-meta">
                         <a href="https://reddit.com/{{ post.subreddit_prefixed }}" target="_blank" class="post-link">{{ post.subreddit_prefixed }}</a> •
-                        <a href="https://reddit.com/u/{{ post.author }}" target="_blank" class="post-link">u/{{ post.author }}</a>
+                        <span class="author-link">
+                            <a href="https://reddit.com/u/{{ post.author }}" target="_blank" class="post-link">u/{{ post.author }}</a>
+                            {% if post.author_profile %}
+                            <div class="user-hover-card">
+                                <div class="user-hover-header">
+                                    {% if post.author_profile.icon_img %}
+                                    <img src="{{ post.author_profile.icon_img }}" alt="{{ post.author }}" class="user-avatar">
+                                    {% else %}
+                                    <div class="user-avatar"></div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="user-hover-name">
+                                            u/{{ post.author }}
+                                            {% if post.author_profile.verified %}<span class="user-badge">✓</span>{% endif %}
+                                            {% if post.author_profile.is_gold %}<span class="user-badge">⭐</span>{% endif %}
+                                        </div>
+                                        <div style="font-size: 0.8em; color: var(--text-secondary);">{{ post.author_profile.account_age }}</div>
+                                    </div>
+                                </div>
+                                <div class="user-hover-stats">
+                                    <div class="user-stat">
+                                        Post karma<br>
+                                        <strong>{{ "{:,}".format(post.author_profile.link_karma) }}</strong>
+                                    </div>
+                                    <div class="user-stat">
+                                        Comment karma<br>
+                                        <strong>{{ "{:,}".format(post.author_profile.comment_karma) }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </span>
                         {% if post.flair %}<span class="flair">{{ post.flair }}</span>{% endif %} •
                         <strong>Published:</strong> {{ post.published }} •
                         <a href="{{ post.link }}" target="_blank" class="post-link">Read on Reddit →</a>
