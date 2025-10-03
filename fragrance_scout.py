@@ -658,8 +658,9 @@ HTML_TEMPLATE = """
             color: var(--text-primary);
             line-height: 1.6;
             margin: 0;
-            padding: 0 0 80px 0;
+            padding: 0;
             background: var(--bg-primary);
+            /* For fixed footer, add: padding: 0 0 80px 0; */
         }
         .container {
             max-width: 1200px;
@@ -738,15 +739,21 @@ HTML_TEMPLATE = """
             margin-bottom: 8px;
         }
         .theme-selector {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            /* Normal footer - scrolls with page */
             background: var(--bg-secondary);
             padding: 16px;
             text-align: center;
             box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            margin-top: 32px;
+
+            /* To make footer fixed at bottom, uncomment these lines:
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
             z-index: 1000;
+            margin-top: 0;
+            */
         }
         .theme-selector label {
             margin-right: 8px;
