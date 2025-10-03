@@ -183,6 +183,18 @@ class FragranceScout:
             'User-Agent': 'python:fragrance-scout:v1.0.0 (by /u/FragranceScoutBot)'
         }
         response = requests.get(feed_url, headers=headers, timeout=30)
+
+        # Monitor Reddit rate limit headers per API documentation
+        if 'X-Ratelimit-Remaining' in response.headers:
+            remaining = response.headers.get('X-Ratelimit-Remaining')
+            used = response.headers.get('X-Ratelimit-Used', 'N/A')
+            reset = response.headers.get('X-Ratelimit-Reset', 'N/A')
+            logger.debug(f"Reddit rate limit: {used} used, {remaining} remaining, resets in {reset}s")
+
+            # Warn if we're getting close to the limit
+            if remaining and int(float(remaining)) < 20:
+                logger.warning(f"Reddit rate limit low: {remaining} requests remaining")
+
         if response.status_code == 429:
             retry_after = int(response.headers.get('Retry-After', 60))
             logger.warning(f"Reddit rate limit hit, waiting {retry_after}s")
