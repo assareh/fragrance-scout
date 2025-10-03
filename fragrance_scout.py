@@ -715,7 +715,7 @@ HTML_TEMPLATE = """
             padding: 16px;
             border-radius: 8px;
             margin: 16px 0;
-            white-space: pre-wrap;
+            white-space: pre-line;
             max-height: 400px;
             overflow-y: auto;
         }
