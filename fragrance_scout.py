@@ -288,12 +288,20 @@ class FragranceScout:
                     logger.debug(f"Skipping post with flair: {flair}")
                     continue
 
+                # Convert epoch timestamp to human-readable Pacific time
+                created_utc = post_data.get("created_utc", 0)
+                if created_utc:
+                    published_dt = datetime.fromtimestamp(float(created_utc), tz=ZoneInfo("America/Los_Angeles"))
+                    published_str = published_dt.strftime('%B %d, %Y at %I:%M %p PT')
+                else:
+                    published_str = "Unknown"
+
                 post = {
                     "id": post_data.get("name", ""),  # Reddit's unique ID (e.g., t3_abc123)
                     "title": post_data.get("title", ""),
                     "link": f"https://reddit.com{post_data.get('permalink', '')}",
                     "author": post_data.get("author", ""),
-                    "published": str(post_data.get("created_utc", "")),
+                    "published": published_str,
                     "summary": post_data.get("selftext", ""),
                     "flair": flair
                 }
@@ -659,7 +667,7 @@ HTML_TEMPLATE = """
             <h1>🌸 Fragrance Scout</h1>
             <p><strong>Monitoring:</strong> r/perfumes, r/nicheperfumes</p>
             <p><strong>Posts found:</strong> {{ posts|length }}</p>
-            <p class="timestamp">Last updated: {{ now }} UTC</p>
+            <p class="timestamp">Last updated: {{ now }}</p>
         </div>
 
         {% if posts %}
@@ -701,10 +709,11 @@ HTML_TEMPLATE = """
 @app.route('/')
 def index():
     """Display found posts"""
+    pacific_time = datetime.now(ZoneInfo("America/Los_Angeles"))
     return render_template_string(
         HTML_TEMPLATE,
         posts=found_posts,
-        now=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        now=pacific_time.strftime('%B %d, %Y at %I:%M %p PT')
     )
 
 

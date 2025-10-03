@@ -94,6 +94,11 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
         value = var.reddit_client_secret
       }
 
+      env {
+        name  = "GRPC_VERBOSITY"
+        value = "ERROR"
+      }
+
       resources {
         limits = {
           cpu    = "1000m"
