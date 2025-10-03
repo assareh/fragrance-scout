@@ -105,6 +105,30 @@ resource "google_cloud_run_v2_service" "fragrance_scout" {
           memory = "512Mi"
         }
       }
+
+      # Startup probe - ensures traffic only routes when app is ready
+      startup_probe {
+        http_get {
+          path = "/"
+          port = 8080
+        }
+        initial_delay_seconds = 0
+        timeout_seconds       = 1
+        period_seconds        = 3
+        failure_threshold     = 3
+      }
+
+      # Liveness probe - checks if app is still responsive
+      liveness_probe {
+        http_get {
+          path = "/"
+          port = 8080
+        }
+        initial_delay_seconds = 10
+        timeout_seconds       = 1
+        period_seconds        = 10
+        failure_threshold     = 3
+      }
     }
 
     service_account = google_service_account.fragrance_scout.email

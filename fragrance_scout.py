@@ -869,7 +869,11 @@ HTML_TEMPLATE = """
                 <div class="post-header">
                     <h2>{{ post.title }}</h2>
                     <div class="post-meta">
+                        {% if post.subreddit_prefixed %}
                         <a href="https://reddit.com/{{ post.subreddit_prefixed }}" target="_blank" class="post-link">{{ post.subreddit_prefixed }}</a> •
+                        {% elif post.subreddit %}
+                        <a href="https://reddit.com/r/{{ post.subreddit }}" target="_blank" class="post-link">r/{{ post.subreddit }}</a> •
+                        {% endif %}
                         <span class="author-link">
                             <a href="https://reddit.com/u/{{ post.author }}" target="_blank" class="post-link">u/{{ post.author }}</a>
                             {% if post.author_profile %}
