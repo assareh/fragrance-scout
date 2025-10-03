@@ -256,6 +256,39 @@ gcloud logging read "resource.type=cloud_run_revision AND resource.labels.servic
 - Check GCS bucket exists: `gcloud storage buckets list | grep fragrance-scout`
 - Verify service account has storage.objectAdmin permission
 
+## Maintenance Notes
+
+### TODO: Remove Legacy Timestamp Conversion (After ~1 Week)
+
+**Location**: `fragrance_scout.py` in the `index()` function (around line 714-731)
+
+The code currently includes runtime conversion for posts with old epoch timestamp format:
+```python
+# Convert old epoch timestamps to readable format for display
+posts_display = []
+for post in found_posts:
+    post_copy = post.copy()
+    published = post_copy.get('published', '')
+    # ... conversion logic ...
+```
+
+**When to remove**: After all existing posts in GCS have cycled out (posts older than 90 days are auto-deleted per GCS lifecycle rules, but realistically after ~1 week all displayed posts should have the new format).
+
+**How to verify**: Check the web UI - if all "Published" timestamps show as "October 02, 2025 at 11:42 AM PT" format (not epoch like "1759326944.0"), it's safe to remove.
+
+**What to do**: Replace the `index()` function with the simpler version:
+```python
+@app.route('/')
+def index():
+    """Display found posts"""
+    pacific_time = datetime.now(ZoneInfo("America/Los_Angeles"))
+    return render_template_string(
+        HTML_TEMPLATE,
+        posts=found_posts,
+        now=pacific_time.strftime('%B %d, %Y at %I:%M %p PT')
+    )
+```
+
 ## License
 
 MIT
