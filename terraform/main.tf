@@ -180,11 +180,11 @@ resource "google_cloud_run_v2_service_iam_member" "public_access" {
   member   = "allUsers"
 }
 
-# Cloud Scheduler job to trigger scanning every 30 minutes
+# Cloud Scheduler job to trigger scanning every hour
 resource "google_cloud_scheduler_job" "fragrance_scout_scan" {
   name             = "fragrance-scout-scan"
-  description      = "Trigger fragrance scout scanning every 30 minutes"
-  schedule         = "*/30 * * * *"
+  description      = "Trigger fragrance scout scanning every hour"
+  schedule         = "0 * * * *"
   time_zone        = "UTC"
   attempt_deadline = "320s"
 
