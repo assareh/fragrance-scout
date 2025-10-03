@@ -4,10 +4,10 @@ A self-contained Python application that monitors Reddit subreddits for interest
 
 ## Features
 
-- **RSS Monitoring**: Polls r/perfumes and r/nicheperfumes every 30 minutes
+- **Reddit API Monitoring**: Uses Reddit JSON API with OAuth to poll r/perfumes and r/nicheperfumes hourly
 - **LLM Filtering**: Uses Gemini 2.5 Flash (cloud) or local LLM (dev) to identify substantive niche/indie perfume reviews
-- **Web UI**: Live dashboard showing interesting posts (auto-refreshes every 30s)
-- **Duplicate Prevention**: Tracks sent posts in GCS or local JSON to avoid re-sending
+- **Web UI**: Dashboard showing interesting posts with dark theme support, user profile hover cards, and flair badges
+- **Duplicate Prevention**: Tracks sent posts in GCS or local JSON to avoid re-processing
 - **Self-Contained**: Minimal dependencies, easy to port to any environment
 - **Cloud-Ready**: Deploys to Cloud Run with Cloud Scheduler for automated scanning
 
@@ -53,12 +53,12 @@ Open your browser to **http://127.0.0.1:5002**
 
 The web UI will:
 - Show interesting posts as they're found
-- Auto-refresh every 30 seconds
-- Display full post content, LLM reasoning, and links to Reddit
+- Display full post content with subreddit links, author hover cards, and flair badges
+- Support light/dark themes (system default, or manual selection)
 - Work without any GCP configuration
 
 In local mode:
-- Runs background thread to check RSS feeds every 30 minutes
+- Runs background thread to check Reddit JSON API every 30 minutes
 - Stores tracking data in local `sent_posts.json`
 - Stores found posts in memory
 
@@ -111,10 +111,10 @@ terraform apply
 
 This creates:
 - **GCS Bucket**: Stores tracking data and found posts
-- **Cloud Run Service**: Runs the web UI and /scan endpoint
-- **Cloud Scheduler**: Triggers scanning every 30 minutes
+- **Cloud Run Service**: Runs the web UI and /scan endpoint with health probes
+- **Cloud Scheduler**: Triggers scanning every hour
 - **Service Accounts**: With appropriate IAM permissions
-- **Secret Manager**: Stores Gemini API key
+- **Secret Manager**: Stores Gemini API key and Reddit OAuth credentials
 
 4. **Get the Cloud Run URL**:
 ```bash
@@ -124,11 +124,11 @@ terraform output cloud_run_url
 ### Cloud Architecture
 
 In cloud mode:
-- **Web UI**: Displays found posts at the Cloud Run URL
-- **Scanning**: Cloud Scheduler hits `/scan` endpoint every 30 minutes
+- **Web UI**: Displays found posts at the Cloud Run URL with theme support
+- **Scanning**: Cloud Scheduler hits `/scan` endpoint every hour
 - **Storage**: GCS bucket stores `sent_posts.json` and `found_posts.json`
 - **LLM**: Uses Gemini 2.5 Flash API (no local LLM needed)
-- **Scaling**: Scales to zero when idle (cost-effective)
+- **Scaling**: Scales to zero when idle with startup/liveness probes (cost-effective)
 
 ## Configuration
 
@@ -152,11 +152,13 @@ PORT=8080                    # Cloud Run port
 ### Code Configuration
 In `fragrance_scout.py`:
 ```python
-# Subreddits to monitor
+# Subreddits to monitor (Reddit JSON API endpoints)
 SUBREDDITS = ["perfumes", "nicheperfumes"]
 
-# Check interval (30 minutes)
+# Check interval (30 minutes for local dev)
 CHECK_INTERVAL = 30 * 60
+
+# Cloud deployment runs hourly via Cloud Scheduler
 ```
 
 ## Running Locally in Background (Optional)
