@@ -11,7 +11,7 @@ import time
 import logging
 import threading
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -303,7 +303,9 @@ class FragranceScout:
                     "author": post_data.get("author", ""),
                     "published": published_str,
                     "summary": post_data.get("selftext", ""),
-                    "flair": flair
+                    "flair": flair,
+                    "subreddit": post_data.get("subreddit", ""),
+                    "subreddit_prefixed": post_data.get("subreddit_name_prefixed", "")
                 }
                 posts.append(post)
 
@@ -487,7 +489,10 @@ class FragranceScout:
                 "link": link,
                 "published": post['published'],
                 "reason": llm_result.get('reason', 'N/A'),
-                "body": body
+                "body": body,
+                "subreddit": post.get('subreddit', ''),
+                "subreddit_prefixed": post.get('subreddit_prefixed', ''),
+                "flair": post.get('flair', '')
             }
             found_posts.append(post_data)
 
@@ -556,13 +561,39 @@ HTML_TEMPLATE = """
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        :root {
+            --bg-primary: #f8f9fa;
+            --bg-secondary: white;
+            --bg-tertiary: #f1f3f5;
+            --text-primary: #111;
+            --text-secondary: #666;
+            --border-color: #dee2e6;
+            --link-color: #4a90e2;
+            --accent-color: #4a90e2;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #242424;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border-color: #404040;
+            --link-color: #66b3ff;
+            --accent-color: #66b3ff;
+        }
+
+        * {
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            color: #111;
+            color: var(--text-primary);
             line-height: 1.6;
             margin: 0;
-            padding: 0;
-            background: #f8f9fa;
+            padding: 0 0 80px 0;
+            background: var(--bg-primary);
         }
         .container {
             max-width: 1200px;
@@ -570,7 +601,7 @@ HTML_TEMPLATE = """
             padding: 32px;
         }
         .header {
-            background: white;
+            background: var(--bg-secondary);
             padding: 24px;
             border-radius: 8px;
             margin-bottom: 32px;
@@ -578,59 +609,52 @@ HTML_TEMPLATE = """
         }
         .header h1 {
             margin: 0 0 8px 0;
-            color: #4a90e2;
+            color: var(--accent-color);
         }
         .header p {
             margin: 4px 0;
-            color: #666;
+            color: var(--text-secondary);
         }
         .post {
-            background: white;
+            background: var(--bg-secondary);
             padding: 24px;
             border-radius: 8px;
             margin-bottom: 24px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .post-header {
-            border-bottom: 2px solid #4a90e2;
+            border-bottom: 2px solid var(--accent-color);
             padding-bottom: 12px;
             margin-bottom: 16px;
         }
         .post-header h2 {
             margin: 0 0 8px 0;
-            color: #333;
+            color: var(--text-primary);
         }
         .post-meta {
             font-size: 0.9em;
-            color: #666;
+            color: var(--text-secondary);
         }
         .post-link {
-            color: #4a90e2;
+            color: var(--link-color);
             text-decoration: none;
             font-weight: 500;
         }
         .post-link:hover {
             text-decoration: underline;
         }
-        .reason-box {
-            background: #e3f2fd;
-            border-left: 4px solid #4a90e2;
-            padding: 16px;
-            margin: 16px 0;
-            border-radius: 0 8px 8px 0;
-        }
-        .reason-box h4 {
-            margin: 0 0 8px 0;
-            color: #4a90e2;
-        }
         .body-box {
-            background: #f8f9fa;
+            background: var(--bg-tertiary);
             padding: 16px;
             border-radius: 8px;
             margin: 16px 0;
             white-space: pre-wrap;
             max-height: 400px;
             overflow-y: auto;
+        }
+        .body-box h4 {
+            margin-top: 0;
+            color: var(--text-primary);
         }
         .timestamp {
             font-size: 0.85em;
@@ -639,25 +663,53 @@ HTML_TEMPLATE = """
         .empty-state {
             text-align: center;
             padding: 64px 32px;
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .empty-state h3 {
-            color: #666;
+            color: var(--text-secondary);
             margin-bottom: 8px;
         }
-        .refresh-btn {
-            display: inline-block;
-            background: #4a90e2;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            text-decoration: none;
-            margin-top: 16px;
+        .theme-selector {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
         }
-        .refresh-btn:hover {
-            background: #357abd;
+        .theme-selector label {
+            margin-right: 8px;
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+        .theme-selector select {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .found-time {
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        .flair {
+            display: inline-block;
+            background: var(--accent-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin-left: 8px;
         }
     </style>
 </head>
@@ -676,32 +728,66 @@ HTML_TEMPLATE = """
                 <div class="post-header">
                     <h2>{{ post.title }}</h2>
                     <div class="post-meta">
-                        <strong>Author:</strong> u/{{ post.author }} •
+                        <a href="https://reddit.com/{{ post.subreddit_prefixed }}" target="_blank" class="post-link">{{ post.subreddit_prefixed }}</a> •
+                        <a href="https://reddit.com/u/{{ post.author }}" target="_blank" class="post-link">u/{{ post.author }}</a>
+                        {% if post.flair %}<span class="flair">{{ post.flair }}</span>{% endif %} •
                         <strong>Published:</strong> {{ post.published }} •
                         <a href="{{ post.link }}" target="_blank" class="post-link">Read on Reddit →</a>
                     </div>
                 </div>
 
-                <div class="reason-box">
-                    <h4>Why it's interesting:</h4>
-                    <p>{{ post.reason }}</p>
-                </div>
-
                 <div class="body-box">
-                    <h4 style="margin-top:0;">Post Body:</h4>
+                    <h4>Post Body:</h4>
                     {{ post.body }}
                 </div>
 
-                <div class="timestamp">Found: {{ post.timestamp }}</div>
+                <p class="found-time">Found: {{ post.timestamp }}</p>
             </div>
             {% endfor %}
         {% else %}
             <div class="empty-state">
-                <h3>👀 Watching for interesting posts...</h3>
-                <p>No posts found yet. The scout checks every 30 minutes.</p>
+                <h3>No posts found yet</h3>
+                <p>The scout checks every 30 minutes.</p>
             </div>
         {% endif %}
     </div>
+
+    <div class="theme-selector">
+        <label for="theme">Theme:</label>
+        <select id="theme" onchange="setTheme(this.value)">
+            <option value="system">System Default</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+        </select>
+    </div>
+
+    <script>
+        function setTheme(theme) {
+            localStorage.setItem('theme', theme);
+            applyTheme(theme);
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+
+        // Load saved theme or default to system
+        const savedTheme = localStorage.getItem('theme') || 'system';
+        document.getElementById('theme').value = savedTheme;
+        applyTheme(savedTheme);
+
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (localStorage.getItem('theme') === 'system') {
+                applyTheme('system');
+            }
+        });
+    </script>
 </body>
 </html>
 """
